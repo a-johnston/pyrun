@@ -122,10 +122,14 @@ def run(method, args):
     args, varargs, kwargs = _parse_args(args)  # TODO: validate types
     co_varnames = method.__code__.co_varnames
     named = set([x.name for x in _get_args(param_info, _ARGS)])
-    named *= set(co_varnames)
+    named &= set(co_varnames)
     named_args = [None] * len(named)
     for name in sorted(named, key=lambda name: co_varnames.index(name)):
-        named_args[co_varnames.index(name)] = args.get(name) or varargs.pop(0)
+        default = param_info[name][0].default
+        if default == inspect._empty:
+            default = None
+        value = args.get(name) or default
+        named_args[co_varnames.index(name)] = value or varargs.pop(0)
     print(json.dumps(method(*(named_args + varargs), **kwargs)))
 
 
