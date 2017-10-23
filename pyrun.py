@@ -37,7 +37,9 @@ def _parse_docstring(method):
     docstring = method.__doc__ or ''
     docstring = filter(lambda x: x, map(str.strip, docstring.split('\n')))
     params = list(inspect.signature(method).parameters.values())
-    param_info = {param.name: [param, None, _get_type(param)] for param in params}
+    param_info = {
+        param.name: [param, None, _get_type(param)] for param in params
+    }
     info_strs = []
 
     for line in docstring:
@@ -119,7 +121,8 @@ def run(method, args):
         sys.exit(0)
     args, varargs, kwargs = _parse_args(args)  # TODO: validate types
     co_varnames = method.__code__.co_varnames
-    named = set([x.name for x in _get_args(param_info, _ARGS)]) & set(co_varnames)
+    named = set([x.name for x in _get_args(param_info, _ARGS)])
+    named *= set(co_varnames)
     named_args = [None] * len(named)
     for name in sorted(named, key=lambda name: co_varnames.index(name)):
         named_args[co_varnames.index(name)] = args.get(name) or varargs.pop(0)

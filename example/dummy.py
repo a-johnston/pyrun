@@ -1,4 +1,4 @@
-def product(a:int, b:float, *args, **kwargs):
+def product(a: int, b: float, *args, **kwargs):
     """Literally just calculates a product lol
     :param a: first required positional argument
     :param b: second required positional argument
