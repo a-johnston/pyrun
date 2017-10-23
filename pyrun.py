@@ -3,6 +3,7 @@ import importlib
 import inspect
 import json
 import sys
+import re
 
 
 _USAGE_ = 'Usage: pyrun MODULE METHOD [ARGS]...'
@@ -10,21 +11,33 @@ _USAGE_ = 'Usage: pyrun MODULE METHOD [ARGS]...'
 _PARAM_PREFIX = ':param '
 _TYPE_PREFIX = ':type '
 
-
 _ARGS = 'POSITIONAL_OR_KEYWORD'
 _VARARGS = 'VAR_POSITIONAL'
 _KWARGS = 'VAR_KEYWORD'
+
+
+def _get_val(x):
+    try:
+        return json.loads(x)
+    except json.decoder.JSONDecodeError:
+        return x.strip()
 
 
 def _get_args(param_info, param_kind):
     return [p[0] for p in param_info.values() if p[0].kind.name == param_kind]
 
 
+def _get_type(param):
+    if param.annotation == inspect._empty:
+        return None
+    return param.annotation.__name__
+
+
 def _parse_docstring(method):
     docstring = method.__doc__ or ''
     docstring = filter(lambda x: x, map(str.strip, docstring.split('\n')))
     params = list(inspect.signature(method).parameters.values())
-    param_info = {param.name: [param, None, None] for param in params}
+    param_info = {param.name: [param, None, _get_type(param)] for param in params}
     info_strs = []
 
     for line in docstring:
@@ -39,20 +52,59 @@ def _parse_docstring(method):
     return param_info, '\n'.join(info_strs).strip()
 
 
+def _parse_args(args):
+    i = 0
+    posargs = {}
+    varargs = []
+    kwargs = {}
+    while i < len(args):
+        if args[i].startswith('--'):
+            name = args[i][2:].strip()
+            i += 1
+            value = _get_val(args[i])
+            posargs[name] = value
+        elif '=' in args[i] and re.match('[a-zA-Z][a-zA-Z0-9]*=.*', args[i]):
+            name, value = args[i].split('=')
+            kwargs[_get_val(name)] = _get_val(value)
+        else:
+            varargs.append(_get_val(args[i]))
+        i += 1
+    return posargs, varargs, kwargs
+
+
 def _print_usage_str(method, param_info, info_str):
     """Test usage str
     """
-    usage = 'Usage:\n\t' + method.__name__ + ' '
+    usage = 'Usage:\n    ' + method.__name__ + ' '
     for param in _get_args(param_info, _ARGS):
         if param.default != inspect._empty:
-            usage += '[--' + param.name + '] '
+            usage += '[--{}] '.format(param.name)
         else:
-            usage += '--' + param.name + ' '
+            usage += '--{} '.format(param.name)
     for vararg in _get_args(param_info, _VARARGS):
-        usage += '[ARGS]... '
+        usage += '[{}]... '.format(vararg.name)
     for kwarg in _get_args(param_info, _KWARGS):
         usage += '[name=value]...'
     usage = usage.strip()
+    param_str = ''
+    if any([x[2] for x in param_info.values()]):
+        longest_type = max([len(x[2]) for x in param_info.values() if x[2]])
+    for param in param_info:
+        param_type = param_info[param][2]
+        if param_type == inspect._empty:
+            param_type = None
+        elif param_type and isinstance(param_type, type):
+            param_type = param_type.__name__
+        param_desc = param_info[param][1]
+        if param_type or param_desc:
+            param_str += '\n    ' + param
+            if param_type:
+                param_str += ' ({})'.format(param_type)
+                param_str += ' ' * (longest_type - len(param_type))
+            if param_desc:
+                param_str += ' : ' + param_desc
+    if param_str:
+        usage += '\n' + param_str
     if info_str:
         usage += '\n\n' + info_str
     usage += '\n'
@@ -65,6 +117,13 @@ def run(method, args):
     if '-h' in args or '--help' in args:
         _print_usage_str(method, param_info, info_str)
         sys.exit(0)
+    args, varargs, kwargs = _parse_args(args)  # TODO: validate types
+    co_varnames = method.__code__.co_varnames
+    named = set([x.name for x in _get_args(param_info, _ARGS)]) & set(co_varnames)
+    named_args = [None] * len(named)
+    for name in sorted(named, key=lambda name: co_varnames.index(name)):
+        named_args[co_varnames.index(name)] = args.get(name) or varargs.pop(0)
+    print(json.dumps(method(*(named_args + varargs), **kwargs)))
 
 
 if __name__ == '__main__':
