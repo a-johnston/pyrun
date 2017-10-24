@@ -27,6 +27,6 @@ Usage:
 
 Literally just calculates a product lol
 
-user@host> ./pyrun.py example.dummy product 1 --a 2 --b 3 4 test=1 key=2
+user@host> ./pyrun.py example/dummy.py product 1 --a 2 --b 3 4 test=1 key=2
 48
 ```
