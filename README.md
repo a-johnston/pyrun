@@ -18,7 +18,7 @@ with varargs (see example).
 
 Example: (using the dummy function in `example/dummy.py`)
 ```
-user@host> ./pyrun.py example.dummy product -h
+user@host> ./pyrun.py example/dummy.py product -h
 Usage:
     product --a --b [args]... [name=value]...
 

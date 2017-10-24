@@ -1,12 +1,12 @@
 #!/usr/bin/env python3.6
-import importlib
+import importlib.machinery
 import inspect
 import json
 import sys
 import re
 
 
-_USAGE_ = 'Usage: pyrun MODULE METHOD [ARGS]...'
+_USAGE_ = 'Usage:\n    pyrun FILE METHOD [ARGS]...\n'
 
 _PARAM_PREFIX = ':param '
 _TYPE_PREFIX = ':type '
@@ -138,7 +138,8 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         print(_USAGE_)
         sys.exit(0)
-    module = importlib.import_module(sys.argv[1])
+    loader = importlib.machinery.SourceFileLoader('module', sys.argv[1])
+    module = loader.load_module('module')
     method = getattr(module, sys.argv[2])
     args = sys.argv[3:]
     run(method, args)
