@@ -126,10 +126,11 @@ def run(method, args):
     named_args = [None] * len(named)
     for name in sorted(named, key=lambda name: co_varnames.index(name)):
         default = param_info[name][0].default
-        if default == inspect._empty:
-            default = None
         value = args.get(name) or default
-        named_args[co_varnames.index(name)] = value or varargs.pop(0)
+        if value == inspect._empty:
+            named_args[co_varnames.index(name)] = varargs.pop(0)
+        else:
+            named_args[co_varnames.index(name)] = value
     print(json.dumps(method(*(named_args + varargs), **kwargs)))
 
 
