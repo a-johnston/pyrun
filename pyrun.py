@@ -6,7 +6,7 @@ import sys
 import re
 
 
-_USAGE_ = 'Usage:\n    pyrun FILE METHOD [ARGS]...\n'
+_USAGE_ = 'Usage:\n    pyrun [-d|--debug] FILE METHOD [-h|--help] [ARGS]...\n'
 
 _PARAM_PREFIX = ':param '
 _TYPE_PREFIX = ':type '
@@ -63,6 +63,9 @@ def _parse_args(args):
         if args[i].startswith('--'):
             name = args[i][2:].strip()
             i += 1
+            if args[i].startswith('--'):
+                posargs[name] = True
+                continue
             value = _get_val(args[i])
             posargs[name] = value
         elif '=' in args[i] and re.match('[a-zA-Z][a-zA-Z0-9]*=.*', args[i]):
@@ -77,7 +80,7 @@ def _parse_args(args):
 def _print_usage_str(method, param_info, info_str):
     """Test usage str
     """
-    usage = 'Usage:\n    ' + method.__name__ + ' '
+    usage = 'Usage:\n    ' + method.__name__ + ' [-h|--help] '
     for param in _get_args(param_info, _ARGS):
         if param.default != inspect._empty:
             usage += '[--{}] '.format(param.name)
@@ -113,7 +116,7 @@ def _print_usage_str(method, param_info, info_str):
     print(usage)
 
 
-def run(method, args):
+def get_args(method, args):
     args = args or []
     param_info, info_str = _parse_docstring(method)
     if '-h' in args or '--help' in args:
@@ -126,20 +129,44 @@ def run(method, args):
     named_args = [None] * len(named)
     for name in sorted(named, key=lambda name: co_varnames.index(name)):
         default = param_info[name][0].default
-        value = args.get(name) or default
-        if value == inspect._empty:
-            named_args[co_varnames.index(name)] = varargs.pop(0)
-        else:
+        value = args.get(name, inspect._empty)
+        if value != inspect._empty:
             named_args[co_varnames.index(name)] = value
-    print(json.dumps(method(*(named_args + varargs), **kwargs)))
+        elif len(varargs) > 0:
+            named_args[co_varnames.index(name)] = varargs.pop(0)
+        elif default != inspect._empty:
+            named_args[co_varnames.index(name)] = default
+        else:
+            raise Exception('Too few arguments provided')
+    return named_args + varargs, kwargs
+
+
+def run(method, args):
+    args, kwargs = get_args(method, args)
+    print(json.dumps(method(*args, **kwargs)))
+
+
+def _print_debug(method, args):
+    args, kwargs = get_args(method, args)
+    args = list(map(repr, args))
+    kwargs = [k + '=' + repr(v) for k, v in kwargs.items()]
+    print('{}({})'.format(
+        method.__name__,
+        ', '.join(args + kwargs),
+    ))
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         print(_USAGE_)
         sys.exit(0)
-    loader = importlib.machinery.SourceFileLoader('module', sys.argv[1])
+    args = list(sys.argv[1:])
+    call = run
+    if args[0] in ('-d', '--debug'):
+        call = _print_debug
+        args.pop(0)
+    loader = importlib.machinery.SourceFileLoader('module', args[0])
     module = loader.load_module('module')
-    method = getattr(module, sys.argv[2])
-    args = sys.argv[3:]
-    run(method, args)
+    method = getattr(module, args[1])
+    args = args[2:]
+    call(method, args)
