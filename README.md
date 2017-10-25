@@ -20,7 +20,7 @@ Example: (using the dummy function in `example/dummy.py`)
 ```
 user@host> ./pyrun.py example/dummy.py product -h
 Usage:
-    product --a --b [args]... [name=value]...
+    product [-h|--help] --a --b [args]... [name=value]...
 
     a (int)   : first required positional argument
     b (float) : second required positional argument
